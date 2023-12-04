@@ -6,13 +6,59 @@
 // Coloque aqui as suas modificações, p.ex. includes, defines variáveis, 
 // estruturas e funções
 
+#include <signal.h>
+#include <sys/time.h>
+
+
+// Estrutura que define um tratador de sinal (deve ser global ou static)
+struct sigaction action ;
+
+// Estrutura de inicialização to timer
+struct itimerval timer ;
+
+// Tamanho do quantum em milisegundos
+int quantum_size = 20;
+
+void ticks_handler (int signum) {
+    systemTime += 1;
+    taskExec->ticks_counter -= 1;
+
+    if (taskExec->ticks_counter == 0) {
+        task_yield(); // Preemptar tarefa
+    }
+}
+
+void set_timer () {
+    // Registra a ação para o sinal de timer SIGALRM
+    action.sa_handler = ticks_handler ;
+    sigemptyset (&action.sa_mask) ;
+    action.sa_flags = 0 ;
+
+    if (sigaction (SIGALRM, &action, 0) < 0)
+    {
+        perror ("Erro em sigaction: ") ;
+        exit (1) ;
+    }
+
+    // Ajusta valores do temporizador
+    timer.it_value.tv_usec = 1000;      // primeiro disparo, em micro-segundos
+    timer.it_interval.tv_usec = 1000;   // disparos subsequentes, em micro-segundos
+
+    // arma o temporizador ITIMER_REAL (vide man setitimer)
+    if (setitimer (ITIMER_REAL, &timer, 0) < 0)
+    {
+        perror ("Erro em setitimer: ") ;
+        exit (1) ;
+    }
+}
+
 
 // ****************************************************************************
 
 
 
 void before_ppos_init () {
-    // put your customization here
+    set_timer();
 #ifdef DEBUG
     printf("\ninit - BEFORE");
 #endif

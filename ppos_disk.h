@@ -13,19 +13,22 @@
 
 #include "ppos.h"
 
-typedef struct waiting {
+typedef struct disk_tasks {
     task_t *task;
     int block; //Bloco onde deseja realizar a operação
     int operation; //Tipo da operação
+    int status; //0 - Significa que a tarefa ainda não foi processada. 1- Significa que tarefa já foi processada
     unsigned char* buffer; //Conteudo que será escrito ou espaço onde o disco irá colocar o dado para ser lido
-    struct waiting *next;
-} waiting;
+    struct disk_tasks *next;
+} disk_tasks;
 
 // estrutura que representa um disco no sistema operacional
 typedef struct {
+  semaphore_t *queue_sem;
+  //int handle_count;
+  semaphore_t * handle_sem;
    task_t scheduler;
-   waiting *task_queue;
-   waiting *ready_task_queue;
+   disk_tasks *task_queue;
 } disk_t ;
 /*
 typedef struct disk_task {
