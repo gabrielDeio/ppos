@@ -8,6 +8,7 @@
 #include <time.h>
 
 struct sigaction usrsig;
+int deslocatedBlocks = 0;
 disk_t* disk;
 
 
@@ -15,32 +16,129 @@ void handler(int signum){
     task_resume(disk->ready_task_queue->task);
 }
 
+
+void append_disk_task(disk_task *t){
+    disk_task *aux = disk->task_queue;
+     if(disk->task_queue == NULL) {
+        disk->task_queue = t;
+        sem_up(disk->queue_sem);
+        //mutex_unlock(disk->queue_mutex);
+    }
+    else{
+        while(aux->next != NULL){
+        aux = aux->next;   
+        }
+        aux->next = t;
+        //t->prev = aux;
+        sem_up(disk->queue_sem);
+        //mutex_unlock(disk->queue_mutex);
+    }
+}
+
+
 void fcsc_body(void *arg){
+    clock_t start = clock();
 
     while(sleepQueue != NULL || readyQueue != NULL){
-        waiting *t = disk->task_queue;
-        if(disk->task_queue != NULL) disk->task_queue = disk->task_queue->next;
-        
-        if(t != NULL){
+        if(disk->task_queue != NULL) {
+            disk_task *t = disk->task_queue;
+            disk->task_queue = disk->task_queue->next;
+            //disk->task_queue->prev = NULL;
+            deslocatedBlocks += disk->currentBlock > t->block ? (disk->currentBlock - t->block) : (t->block - disk->currentBlock);             
+            disk->currentBlock = t->block;
+            
             task_resume(t->task);
         }
-        else{
             taskExec->state = PPOS_TASK_STATE_SUSPENDED;
             task_suspend(taskExec, &sleepQueue);
             task_yield();
-        }
+
     }
 
+    clock_t endTime = clock();
+
+    printf("total blocks deslocated: %d\n", deslocatedBlocks);
+    printf("total time : %.f\n", (double)endTime - start);
 
 }
+
+void sstf_body(void *arg){
+    clock_t start = clock();
+    while(sleepQueue != NULL || readyQueue != NULL){
+        if(disk->task_queue != NULL){
+            disk_task *t = disk->task_queue;
+            disk_task *shortest = disk->task_queue;
+            int currentDistance = disk->currentBlock > t->block? disk->currentBlock - t->block : t->block - disk->currentBlock;
+
+            while(t->next != NULL){
+                int candidateResult = disk->currentBlock > t->block? disk->currentBlock - t->block : t->block - disk->currentBlock;
+                if(currentDistance > candidateResult){
+                    shortest = t;
+                    currentDistance = candidateResult;
+                }
+
+                t = t->next;
+            }
+
+            t = disk->task_queue;
+            if(t == shortest){
+                disk->task_queue = NULL;
+            }
+            else{
+                while(t->next != shortest) t = t->next;
+                t->next = t->next->next;
+            }
+
+            deslocatedBlocks += disk->currentBlock > shortest->block ? (disk->currentBlock - shortest->block) : (shortest->block - disk->currentBlock);             
+            disk->currentBlock = shortest->block;
+            task_resume(shortest->task);
+            
+        }
+        taskExec->state = PPOS_TASK_STATE_SUSPENDED;
+        task_suspend(taskExec, &sleepQueue);
+        task_yield();
+        
+    }
+    clock_t endTime = clock();
+    printf("total blocks deslocated: %d\n", deslocatedBlocks);
+    printf("total time : %.f\n", (double)endTime - start);
+}
+
+/* TODO - terminar cscan, tava cansado, mas vai dar boa
+
+    void cscan_body(void *arg){
+    clock_t start = clock();
+    while(sleepQueue != NULL || readyQueue != NULL){
+        if(disk->task_queue != NULL){
+            disk_task *t = disk->task_queue;
+            disk_task *candidateResult = t;
+            int currentDistance  = disk_cmd(DISK_CMD_DISKSIZE, 0, 0);
+
+            if(t->next == NULL){
+                disk->task_queue = NULL;
+            }
+            else{   
+                while(t->next !== NULL){
+                    if(t->block > disk->currentBlock){
+                        currentDistance = t->block - currentBlock;
+                    }
+        
+                }
+            }
+
+
+        }
+    }
+}
+
+*/
 
 int disk_mgr_init (int *numBlocks, int *blockSize){
     disk = malloc(sizeof(disk_t));
     disk->task_queue = NULL;
-    //disk->queue_mutex = malloc(sizeof(mutex_t));
-    //disk->disk_mutex = malloc(sizeof(mutex_t));
-    disk->queue_sem = malloc(sizeof(disk->queue_sem));
-    disk->disk_sem = malloc(sizeof(disk->disk_sem));
+    disk->queue_sem = malloc(sizeof(semaphore_t));
+    disk->disk_sem = malloc(sizeof(semaphore_t));
+    disk->currentBlock = 0;
 
     usrsig.sa_handler = handler;
     sigemptyset(&usrsig.sa_mask);
@@ -55,22 +153,7 @@ int disk_mgr_init (int *numBlocks, int *blockSize){
     perror("Erro em criacao de disco");
     exit(1);
     }
-    /*
-    
-            if(mutex_create(disk->queue_mutex)){
-        perror("Error em criacao de mutex");
-        exit(1);
-    }
-    
-    if(mutex_create(disk->disk_mutex)){
-        perror("Error em criacao de mutex");
-        exit(1);
-    }
-    */
-    
-    
-
-    
+        
     if(sem_create(disk->queue_sem, 1)){
         perror("Error em criacao de semaforo");
         exit(1);
@@ -85,7 +168,7 @@ int disk_mgr_init (int *numBlocks, int *blockSize){
 
     
     
-    printf("\n%d\n", task_create(&disk->scheduler, fcsc_body, ""));
+    printf("\n%d\n", task_create(&disk->scheduler, sstf_body, ""));
 
     return 0;
 }
@@ -93,7 +176,8 @@ int disk_mgr_init (int *numBlocks, int *blockSize){
 int disk_block_read(int block, void* buffer){
     //mutex_lock(disk->queue_mutex);
     sem_down(disk->queue_sem);
-    waiting *t = malloc(sizeof(waiting));
+
+    disk_task *t = malloc(sizeof(disk_task));
 
     t->operation = DISK_CMD_READ;
     t->block = block;
@@ -102,20 +186,7 @@ int disk_block_read(int block, void* buffer){
     t->task = taskExec;
     t->task->state = PPOS_TASK_STATE_SUSPENDED;
 
-    waiting *aux = disk->task_queue;
-     if(disk->task_queue == NULL) {
-        disk->task_queue = t;
-        sem_up(disk->queue_sem);
-        //mutex_unlock(disk->queue_mutex);
-    }
-    else{
-        while(aux->next != NULL){
-        aux = aux->next;   
-        }
-        aux->next = t;
-        sem_up(disk->queue_sem);
-        //mutex_unlock(disk->queue_mutex);
-    }
+    append_disk_task(t);
     
     task_suspend(t->task, &sleepQueue);
     task_yield();
@@ -143,7 +214,7 @@ int disk_block_read(int block, void* buffer){
 int disk_block_write(int block, void* buffer){
     //mutex_lock(disk->queue_mutex);
     sem_down(disk->queue_sem);
-    waiting *t = malloc(sizeof(waiting));
+    disk_task *t = malloc(sizeof(disk_task));
 
     t->operation = DISK_CMD_WRITE;
     t->block = block;
@@ -152,20 +223,7 @@ int disk_block_write(int block, void* buffer){
     t->task = taskExec;
     t->task->state = PPOS_TASK_STATE_SUSPENDED;
 
-    waiting *aux = disk->task_queue;
-     if(disk->task_queue == NULL) {
-        disk->task_queue = t;
-        sem_up(disk->queue_sem);
-        //mutex_unlock(disk->queue_mutex);
-    }
-    else{
-        while(aux->next != NULL){
-        aux = aux->next;   
-        }
-        aux->next = t;
-        sem_up(disk->queue_sem);
-        //mutex_unlock(disk->queue_mutex);
-    }
+    append_disk_task(t);
     
     task_suspend(t->task, &sleepQueue);
     task_yield();

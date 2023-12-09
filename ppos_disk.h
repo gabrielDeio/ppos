@@ -35,23 +35,24 @@ typedef struct {
 
 
 
-typedef struct waiting {
+typedef struct disk_task {
     task_t *task;
     int block; //Bloco onde deseja realizar a operação
     int operation; //Tipo da operação
     unsigned char* buffer; //Conteudo que será escrito ou espaço onde o disco irá colocar o dado para ser lido
-    struct waiting *next;
-} waiting;
+    struct disk_task *next;
+} disk_task;
 
 // estrutura que representa um disco no sistema operacional
 typedef struct {
-  semaphore_t * disk_sem;
+  semaphore_t *disk_sem;
   semaphore_t *queue_sem;
-  mutex_t * queue_mutex;
-  mutex_t * disk_mutex;
-   task_t scheduler;
-   waiting *task_queue;
-   waiting *ready_task_queue;
+  semaphore_t *handler_sem;
+  task_t scheduler;
+  disk_task *task_queue;
+  disk_task *ready_task_queue;
+  int status;
+  int currentBlock;
 } disk_t ;
 
 
