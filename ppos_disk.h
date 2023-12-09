@@ -13,6 +13,7 @@
 
 #include "ppos.h"
 
+/* 
 typedef struct disk_tasks {
     task_t *task;
     int block; //Bloco onde deseja realizar a operação
@@ -26,10 +27,34 @@ typedef struct disk_tasks {
 typedef struct {
   semaphore_t *queue_sem;
   //int handle_count;
-  semaphore_t * handle_sem;
+  semaphore_t * disk_sem;
    task_t scheduler;
    disk_tasks *task_queue;
 } disk_t ;
+*/
+
+
+
+typedef struct waiting {
+    task_t *task;
+    int block; //Bloco onde deseja realizar a operação
+    int operation; //Tipo da operação
+    unsigned char* buffer; //Conteudo que será escrito ou espaço onde o disco irá colocar o dado para ser lido
+    struct waiting *next;
+} waiting;
+
+// estrutura que representa um disco no sistema operacional
+typedef struct {
+  semaphore_t * disk_sem;
+  semaphore_t *queue_sem;
+  mutex_t * queue_mutex;
+  mutex_t * disk_mutex;
+   task_t scheduler;
+   waiting *task_queue;
+   waiting *ready_task_queue;
+} disk_t ;
+
+
 /*
 typedef struct disk_task {
   struct disk_task *prev;
