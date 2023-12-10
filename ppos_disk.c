@@ -53,7 +53,7 @@ void remove_from_disk_queue(disk_task *t){
 
 
 void fcsc_body(void *arg){
-    clock_t start = clock();
+    int startTime = systemTime;
 
     while(sleepQueue != NULL || readyQueue != NULL){
         if(disk->task_queue != NULL) {
@@ -71,15 +71,16 @@ void fcsc_body(void *arg){
 
     }
 
-    clock_t endTime = clock();
+    int endTime = systemTime;
 
     printf("total blocks deslocated: %d\n", deslocatedBlocks);
-    printf("total time : %.f\n", (double)endTime - start);
+    printf("total time : %d\n", endTime - startTime);
 
 }
 
 void sstf_body(void *arg){
-    clock_t start = clock();
+    int startTime = systemTime;
+
     while(sleepQueue != NULL || readyQueue != NULL){
         if(disk->task_queue != NULL){
             disk_task *t = disk->task_queue;
@@ -115,13 +116,15 @@ void sstf_body(void *arg){
         task_yield();
         
     }
-    clock_t endTime = clock();
+    int endTime = systemTime;
+
     printf("total blocks deslocated: %d\n", deslocatedBlocks);
-    printf("total time : %.f\n", (double)endTime - start);
+    printf("total time : %d\n", endTime - startTime);
 }
 
-    void cscan_body(void *arg){
-    clock_t start = clock();
+void cscan_body(void *arg){
+    int startTime = systemTime;
+
     while(sleepQueue != NULL || readyQueue != NULL){
         if(disk->task_queue != NULL){
             disk_task *t = disk->task_queue;
@@ -153,9 +156,10 @@ void sstf_body(void *arg){
         task_yield();
     }
 
-    clock_t endTime = clock();
+    int endTime = systemTime;
+
     printf("total blocks deslocated: %d\n", deslocatedBlocks);
-    printf("total time : %.f\n", (double)endTime - start);
+    printf("total time : %d\n", endTime - startTime);
 }
 
 
@@ -195,7 +199,7 @@ int disk_mgr_init (int *numBlocks, int *blockSize){
 
     
     
-    printf("\n%d\n", task_create(&disk->scheduler, cscan_body, ""));
+    printf("\n%d\n", task_create(&disk->scheduler, fcsc_body, ""));
 
     return 0;
 }
