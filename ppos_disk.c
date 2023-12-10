@@ -35,6 +35,22 @@ void append_disk_task(disk_task *t){
     }
 }
 
+void remove_from_disk_queue(disk_task *t){
+    disk_task *aux = disk->task_queue;
+    if(aux == NULL) return;
+    while(aux->next != t){
+        aux = aux->next;
+    }
+    if(aux->next->next == NULL) {
+        aux->next = NULL;
+        return;    
+    }
+
+    aux->next = aux->next->next;
+    return;
+
+}
+
 
 void fcsc_body(void *arg){
     clock_t start = clock();
@@ -104,34 +120,45 @@ void sstf_body(void *arg){
     printf("total time : %.f\n", (double)endTime - start);
 }
 
-/* TODO - terminar cscan, tava cansado, mas vai dar boa
-
     void cscan_body(void *arg){
     clock_t start = clock();
     while(sleepQueue != NULL || readyQueue != NULL){
         if(disk->task_queue != NULL){
             disk_task *t = disk->task_queue;
             disk_task *candidateResult = t;
-            int currentDistance  = disk_cmd(DISK_CMD_DISKSIZE, 0, 0);
+            int currentDistance  = (disk_cmd(DISK_CMD_DISKSIZE, 0, 0) - 1);
 
             if(t->next == NULL){
                 disk->task_queue = NULL;
             }
             else{   
-                while(t->next !== NULL){
-                    if(t->block > disk->currentBlock){
-                        currentDistance = t->block - currentBlock;
+                while(t->next != NULL){
+                    if(t->block > disk->currentBlock && currentDistance < (t->block - disk->currentBlock)){
+                        currentDistance = t->block - disk->currentBlock;
+                        candidateResult = t;
+                        
                     }
-        
+                    t = t->next;
                 }
+                remove_from_disk_queue(candidateResult);
             }
 
-
+            task_resume(candidateResult->task);
+            deslocatedBlocks += disk->currentBlock > candidateResult->block ? (disk->currentBlock - candidateResult->block) : (candidateResult->block - disk->currentBlock);
+            disk->currentBlock = candidateResult->block;
+            if(disk->currentBlock == (disk_cmd(DISK_CMD_DISKSIZE, 0, 0) - 1)) disk->currentBlock = 0;
         }
+        taskExec->state = PPOS_TASK_STATE_SUSPENDED;
+        task_suspend(taskExec, &sleepQueue);
+        task_yield();
     }
+
+    clock_t endTime = clock();
+    printf("total blocks deslocated: %d\n", deslocatedBlocks);
+    printf("total time : %.f\n", (double)endTime - start);
 }
 
-*/
+
 
 int disk_mgr_init (int *numBlocks, int *blockSize){
     disk = malloc(sizeof(disk_t));
@@ -168,7 +195,7 @@ int disk_mgr_init (int *numBlocks, int *blockSize){
 
     
     
-    printf("\n%d\n", task_create(&disk->scheduler, sstf_body, ""));
+    printf("\n%d\n", task_create(&disk->scheduler, cscan_body, ""));
 
     return 0;
 }
