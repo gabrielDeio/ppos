@@ -22,16 +22,13 @@ void append_disk_task(disk_task *t){
      if(disk->task_queue == NULL) {
         disk->task_queue = t;
         sem_up(disk->queue_sem);
-        //mutex_unlock(disk->queue_mutex);
     }
     else{
         while(aux->next != NULL){
         aux = aux->next;   
         }
         aux->next = t;
-        //t->prev = aux;
         sem_up(disk->queue_sem);
-        //mutex_unlock(disk->queue_mutex);
     }
 }
 
@@ -59,7 +56,6 @@ void fcsc_body(void *arg){
         if(disk->task_queue != NULL) {
             disk_task *t = disk->task_queue;
             disk->task_queue = disk->task_queue->next;
-            //disk->task_queue->prev = NULL;
             deslocatedBlocks += disk->currentBlock > t->block ? (disk->currentBlock - t->block) : (t->block - disk->currentBlock);             
             disk->currentBlock = t->block;
             
@@ -205,7 +201,6 @@ int disk_mgr_init (int *numBlocks, int *blockSize){
 }
 
 int disk_block_read(int block, void* buffer){
-    //mutex_lock(disk->queue_mutex);
     sem_down(disk->queue_sem);
 
     disk_task *t = malloc(sizeof(disk_task));
@@ -222,8 +217,6 @@ int disk_block_read(int block, void* buffer){
     task_suspend(t->task, &sleepQueue);
     task_yield();
     
-
-    //mutex_lock(disk->disk_mutex);
     sem_down(disk->disk_sem);
     disk->ready_task_queue = t;
     
@@ -237,13 +230,11 @@ int disk_block_read(int block, void* buffer){
     {
     }
     sem_up(disk->disk_sem);
-    //mutex_unlock(disk->disk_mutex);
 
     return 0;
 }
 
 int disk_block_write(int block, void* buffer){
-    //mutex_lock(disk->queue_mutex);
     sem_down(disk->queue_sem);
     disk_task *t = malloc(sizeof(disk_task));
 
@@ -259,8 +250,6 @@ int disk_block_write(int block, void* buffer){
     task_suspend(t->task, &sleepQueue);
     task_yield();
     
-
-    //mutex_lock(disk->disk_mutex);
     sem_down(disk->disk_sem);
     disk->ready_task_queue = t;
     
@@ -274,7 +263,6 @@ int disk_block_write(int block, void* buffer){
     {
     }
     sem_up(disk->disk_sem);
-    //mutex_unlock(disk->disk_mutex);
 
     return 0;
 }
